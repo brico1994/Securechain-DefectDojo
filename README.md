@@ -7,21 +7,22 @@ SC-DOJO is a backend and frontend integration layer between SecureChain and Defe
 The project allows:
 
 - Generation of Generic Findings documents
-- Correlation of SBOM, VEX and TIX artifacts
+- Correlation of SBOM, VEX and TIX documents
 - Export of vulnerabilities into DefectDojo
 - Visualization and management from SecureChain frontend
 - Centralized vulnerability workflow management
 
----
 
 # Requirements
 
-You need:
-
-- Docker
-- Docker Compose
-- Git
-- curl
+- **Docker Engine 20.10+**: Container runtime for running all services
+- **Docker Compose V2**: Required for orchestrating multi-container applications
+- **make utility**: Used to run build and deployment commands from the makefile
+- **zstd**: Compression tool needed to extract database dumps from Zenodo
+- **git**: Used for managing different github repositories.
+System Resources:
+Minimum 4GB RAM (Neo4j and MongoDB require memory for optimal performance)
+At least 10GB free disk space for images, containers, and database data
 
 Check installation:
 
@@ -44,28 +45,17 @@ securechain-stack/
 └── django-DefectDojo/
 ```
 
-Create it:
-
-```bash
-mkdir -p ~/securechain-stack
-cd ~/securechain-stack
-```
-
 ---
 
 # 1. Install SecureChain
 
-Clone SecureChain:
+Before starting with the installation it is recomended to clone the repository [SecureChain-stack](https://github.com/securechaindev/securechain-stack) in the securechain directory for easier installation
 
 ```bash
-git clone <SECURECHAIN_REPOSITORY_URL> securechain
-cd securechain
-git pull
+git clone https://github.com/securechaindev/securechain-stack
 ```
 
----
-
-## Create Docker network
+## 1. Create Docker network
 
 SecureChain requires a shared Docker network:
 
@@ -73,15 +63,120 @@ SecureChain requires a shared Docker network:
 docker network create securechain
 ```
 
----
+### 2. Configure environment variables
 
-## Start SecureChain
+Create a `.env` file using `make generate-env` command, and fill it in with your information where necessary.
 
+#### Get API Keys
+
+- How to get a *GitHub* [API key](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens).
+
+- Modify the **Json Web Token (JWT)** secret key and algorithm with your own. You can generate your own secret key with the command **openssl rand -base64 32**.
+
+**Security Note**: Always change default credentials before deploying to production environments.
+
+Generate configuration files:
 ```bash
-docker compose -f dev/docker-compose.yml up -d --build
+make generate-env                    # Uses stable profile (default)
+make generate-env PROFILE=latest     # Uses latest profile
 ```
 
----
+The `generate-env` script only creates files if they don't exist, preserving any manual changes you've made.
+
+### 3. Download database dumps from Zenodo (optional but recommended)
+
+Downloads and extracts Neo4j and MongoDB [seed data](https://doi.org/10.5281/zenodo.16739080) from **Zenodo** with `make download-dump` command. This step is optional because it does not affect the correct deployment of the tools, but if you want to use the extracted graph data for your software supply chain analysis, it is a recommended step. It should also be noted that the dump can be large, so **a good internet connection is required**.
+
+### 4. Modify the dockercompose.yaml
+
+For this integration with DefectDojo, we will be using a diferent frontend from the original repository, so it is recomended to take the original docker-compose containers off the docker/docker-compose.tools.yml file. You mae leave it like this:
+
+```yaml
+services:
+
+  securechain-gateway:
+    container_name: securechain-gateway
+    image: ghcr.io/securechaindev/securechain-gateway:latest
+    env_file: ../.env
+    ports:
+      - '8000:8000'
+    networks:
+      - securechain
+    depends_on:
+      securechain-auth:
+        condition: service_healthy
+      securechain-depex:
+        condition: service_healthy
+      securechain-vexgen:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  securechain-auth:
+    container_name: securechain-auth
+    image: ghcr.io/securechaindev/securechain-auth:latest
+    env_file: ../.env
+    ports:
+      - '8000'
+    networks:
+      - securechain
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  securechain-depex:
+    container_name: securechain-depex
+    image: ghcr.io/securechaindev/securechain-depex:latest
+    env_file: ../.env
+    ports:
+      - '8000'
+    networks:
+      - securechain
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    container_name: securechain-redis
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+    networks:
+      - securechain
+    command: redis-server --appendonly yes
+
+  securechain-vexgen:
+    container_name: securechain-vexgen
+    image: ghcr.io/securechaindev/securechain-vexgen:latest
+    env_file: ../.env
+    ports:
+      - '8000'
+    networks:
+      - securechain
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+networks:
+  securechain:
+    name: securechain
+    external: true
+    driver: bridge
+
+volumes:
+  redis-data:
+```
 
 ## Validate deployment
 
