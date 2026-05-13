@@ -12,6 +12,7 @@ The project allows:
 - Visualization and management from SecureChain frontend
 - Centralized vulnerability workflow management
 
+---
 
 # Requirements
 
@@ -177,6 +178,11 @@ networks:
 volumes:
   redis-data:
 ```
+### 5. Start services
+
+Use the  `make up MODE=all` for deploying every container from the securechain stack except the secure-frontend container that will be installed afterwards. 
+
+---
 
 ## Validate deployment
 
@@ -187,7 +193,6 @@ docker ps
 Expected containers:
 
 ```text
-securechain-frontend
 securechain-gateway
 securechain-vexgen
 securechain-auth
@@ -217,7 +222,7 @@ http://localhost:7474
 
 # 2. Install DefectDojo
 
-Clone repository:
+## 1.Clone repository:##
 
 ```bash
 cd ~/securechain-stack
@@ -228,7 +233,7 @@ cd django-DefectDojo
 
 ---
 
-## Start DefectDojo
+## 2.Start DefectDojo
 
 ```bash
 docker compose up -d
@@ -238,7 +243,7 @@ Wait several minutes until initialization finishes.
 
 ---
 
-## Obtain admin credentials
+## 3.Obtain admin credentials
 
 ```bash
 docker compose logs initializer | grep "Admin password:"
@@ -246,7 +251,7 @@ docker compose logs initializer | grep "Admin password:"
 
 ---
 
-## Access DefectDojo
+## 4.Access DefectDojo
 
 ```text
 http://localhost:8080
@@ -314,12 +319,8 @@ Save the generated token.
 Clone repository:
 
 ```bash
-cd ~/securechain-stack
-
 git clone <SC_DOJO_BACKEND_REPOSITORY_URL> securechain-defectdojo-integration
 cd securechain-defectdojo-integration
-
-git pull
 ```
 
 ---
