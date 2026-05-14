@@ -14,7 +14,7 @@ The project allows:
 
 ---
 
-# Requirements
+## Requirements
 
 - **Docker Engine 20.10+**: Container runtime for running all services
 - **Docker Compose V2**: Required for orchestrating multi-container applications
@@ -35,7 +35,7 @@ git --version
 
 ---
 
-# Repository Structure
+## Repository Structure
 
 Recommended workspace:
 
@@ -48,7 +48,7 @@ securechain-stack/
 
 ---
 
-# 1. Install SecureChain
+## 1. Install SecureChain
 
 Before starting with the installation it is recomended to clone the repository [SecureChain-stack](https://github.com/securechaindev/securechain-stack) in the securechain directory for easier installation
 
@@ -56,7 +56,7 @@ Before starting with the installation it is recomended to clone the repository [
 git clone https://github.com/securechaindev/securechain-stack
 ```
 
-## 1. Create Docker network
+### 1. Create Docker network
 
 SecureChain requires a shared Docker network:
 
@@ -184,7 +184,7 @@ Use the  `make up MODE=all` for deploying every container from the securechain s
 
 ---
 
-## Validate deployment
+#### Validate deployment
 
 ```bash
 docker ps
@@ -204,7 +204,7 @@ redis
 
 ---
 
-## Access SecureChain
+#### Access SecureChain
 
 Frontend:
 
@@ -220,9 +220,9 @@ http://localhost:7474
 
 ---
 
-# 2. Install DefectDojo
+## 2. Install DefectDojo
 
-## 1.Clone repository:
+### 1.Clone repository:
 
 ```bash
 cd ~/securechain-stack
@@ -231,7 +231,7 @@ git clone https://github.com/DefectDojo/django-DefectDojo
 cd django-DefectDojo
 ```
 
-## 2.Start DefectDojo
+### 2.Start DefectDojo
 
 ```bash
 docker compose up -d
@@ -239,13 +239,13 @@ docker compose up -d
 
 Wait several minutes until initialization finishes.
 
-## 3.Obtain admin credentials
+### 3.Obtain admin credentials
 
 ```bash
 docker compose logs initializer | grep "Admin password:"
 ```
 
-## 4.Access DefectDojo
+### 4.Access DefectDojo
 
 ```text
 http://localhost:8080
@@ -259,17 +259,17 @@ admin
 
 Password appears in initializer logs.
 
-# 3. Create Product and Engagement
+### 5. Create Product and Engagement
 
 Inside DefectDojo:
 
-## Create Product
+### Create Product
 
 ```text
 Products → Add Product
 ```
 
-## Create Engagement
+### Create Engagement
 
 Inside the created product:
 
@@ -277,7 +277,7 @@ Inside the created product:
 Add Engagement
 ```
 
-# 4. Generate DefectDojo API Key
+### 6. Generate DefectDojo API Key
 
 In DefectDojo:
 
@@ -289,18 +289,16 @@ Save the generated token.
 
 ---
 
-# 3 Install SC-DOJO Backend
+## 3 Install SC-DOJO Backend
 
-## 1.Clone repository:
+### 1.Clone repository:
 
 ```bash
 git clone <SC_DOJO_BACKEND_REPOSITORY_URL> securechain-defectdojo-integration
 cd securechain-defectdojo-integration
 ```
 
----
-
-## 2.Configure Backend Environment
+### 2.Configure Backend Environment
 
 Create `.env`:
 
@@ -308,9 +306,7 @@ Create `.env`:
 nano .env
 ```
 
----
-
-## Example `.env`
+#### Example `.env`
 
 ```env
 # =========================
@@ -339,7 +335,7 @@ DEFECTDOJO_ENGAGEMENT_NAME=SecureChain Generic Findings
 DEFECTDOJO_TEST_TITLE=SecureChain Generic Findings
 ```
 
-## 3. Start SC-DOJO Backend
+### 3. Start SC-DOJO Backend
 
 ```bash
 docker compose -f docker-compose.dev.yml up -d --build
@@ -347,7 +343,7 @@ docker compose -f docker-compose.dev.yml up -d --build
 
 ---
 
-## 4. Validate Backend
+### 4. Validate Backend
 
 Swagger UI:
 
@@ -357,7 +353,7 @@ http://localhost:8001/docs
 
 ---
 
-## 5. Connect Frontend to SC-DOJO
+### 5. Connect Frontend to SC-DOJO
 
 Edit SecureChain frontend Nginx configuration.
 
@@ -373,7 +369,7 @@ location /api/defectdojo/generic-findings/ {
 }
 ```
 
-## Important
+#### Important
 
 This block MUST appear before:
 
@@ -385,7 +381,7 @@ location /api/ {
 
 Otherwise requests will not reach SC-DOJO.
 
-## 4. Rebuild Frontend
+### 4. Rebuild Frontend
 
 ```bash
 cd ~/securechain-/securechain
@@ -393,7 +389,7 @@ cd ~/securechain-/securechain
 docker compose -f dev/docker-compose.yml up -d --build
 ```
 
-## 5. Validate Docker Networks
+### 5. Validate Docker Networks
 
 List networks:
 
@@ -408,7 +404,7 @@ securechain
 django-defectdojo_default
 ```
 
-## Verify container connectivity
+#### Verify container connectivity
 
 ```bash
 docker inspect securechain-defectdojo-integration
@@ -418,9 +414,9 @@ SC-DOJO must belong to BOTH networks.
 
 ---
 
-# 5. Validate End-to-End Workflow
+### 5. Validate End-to-End Workflow
 
-## Generate Generic Findings
+#### Generate Generic Findings
 
 ```bash
 curl -X POST http://localhost:8001/api/defectdojo/generic-findings/generate \
@@ -431,19 +427,19 @@ curl -X POST http://localhost:8001/api/defectdojo/generic-findings/generate \
 }'
 ```
 
-## List documents
+#### List documents
 
 ```bash
 curl http://localhost:8001/api/defectdojo/generic-findings/documents
 ```
 
-## Retrieve document
+#### Retrieve document
 
 ```bash
 curl http://localhost:8001/api/defectdojo/generic-findings/documents/<DOCUMENT_ID>
 ```
 
-## Import into DefectDojo
+#### Import into DefectDojo
 
 ```bash
 curl -X POST \
@@ -456,7 +452,7 @@ http://localhost:8001/api/defectdojo/generic-findings/documents/<DOCUMENT_ID>/im
 }'
 ```
 
-# 14. Frontend Validation
+### 6. Frontend Validation
 
 Open:
 
@@ -472,9 +468,7 @@ Validate:
 - Document visualization
 - Import to DefectDojo
 
----
-
-# 15. Running Tests
+## 5. Running Tests
 
 Inside backend repository:
 
