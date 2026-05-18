@@ -1,0 +1,14 @@
+{
+  "vex_version": "0.2",
+  "statements": [
+    {
+      "vulnerability": "CVE-2023-0001",
+      "product": {
+        "purl": "pkg:pypi/requests@2.25.0"
+      },
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "The vulnerable code path is not reachable in this application."
+    }
+  ]
+}

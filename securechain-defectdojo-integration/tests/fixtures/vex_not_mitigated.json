@@ -1,0 +1,13 @@
+{
+  "vex_version": "0.2",
+  "statements": [
+    {
+      "vulnerability": "CVE-2023-0001",
+      "product": {
+        "purl": "pkg:pypi/requests@2.25.0"
+      },
+      "status": "affected",
+      "justification": "component_present"
+    }
+  ]
+}

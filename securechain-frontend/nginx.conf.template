@@ -1,0 +1,237 @@
+# =========================
+# Global rate-limit zones
+# =========================
+# API rate limit: 10 req/s per client IP
+limit_req_zone $binary_remote_addr zone=api_ratelimit:10m rate=10r/s;
+
+# Static rate limit: 20 req/s per client IP
+limit_req_zone $binary_remote_addr zone=static_ratelimit:10m rate=20r/s;
+
+# Optional: concurrent connections per IP (used later)
+limit_conn_zone $binary_remote_addr zone=perip:10m;
+
+# =========================
+# Cloudflare real client IP
+# (place before servers so it applies globally)
+# =========================
+# Trust Cloudflare edge IP ranges (keep this list updated periodically)
+set_real_ip_from 173.245.48.0/20;
+set_real_ip_from 103.21.244.0/22;
+set_real_ip_from 103.22.200.0/22;
+set_real_ip_from 103.31.4.0/22;
+set_real_ip_from 141.101.64.0/18;
+set_real_ip_from 108.162.192.0/18;
+set_real_ip_from 190.93.240.0/20;
+set_real_ip_from 188.114.96.0/20;
+set_real_ip_from 197.234.240.0/22;
+set_real_ip_from 198.41.128.0/17;
+set_real_ip_from 162.158.0.0/15;
+set_real_ip_from 104.16.0.0/13;
+set_real_ip_from 104.24.0.0/14;
+set_real_ip_from 172.64.0.0/13;
+set_real_ip_from 131.0.72.0/22;
+
+# Use Cloudflare header as the real client IP
+real_ip_header CF-Connecting-IP;
+
+# --- HTTP: redirect to HTTPS ---
+server {
+    listen 80;
+    listen [::]:80;
+    server_name securechain.dev www.securechain.dev;
+    return 301 https://$host$request_uri;
+}
+
+# --- HTTPS: Full (strict) behind Cloudflare ---
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name securechain.dev www.securechain.dev;
+
+    # Cloudflare Origin Certificate (mounted via volumes)
+    ssl_certificate     /etc/ssl/cf_origin.pem;
+    ssl_certificate_key /etc/ssl/private/cf_origin.key;
+
+    # Sensible TLS settings
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:50m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    # Optional HSTS (enable only when HTTPS is confirmed everywhere)
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # Static frontend
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Long cache for immutable assets
+    location /_next/static/ { expires 1y; add_header Cache-Control "public, immutable"; }
+    location /images/       { expires 1y; add_header Cache-Control "public, immutable"; }
+    location /assets/       { expires 1y; add_header Cache-Control "public, immutable"; }
+
+    # -----------------------------------------
+    # (2) Block PHP files and WordPress probes
+    # -----------------------------------------
+    # Never serve/execute any .php
+    location ~* \.php($|\?) { return 444; }
+
+    # Common WordPress paths + xmlrpc
+    location ~* ^/(wp-admin|wp-includes|wp-content|wp-login\.php|wp-config\.php|wp-cron\.php|xmlrpc\.php|readme\.html|license\.txt) {
+        return 444;
+    }
+
+    # .php inside any subfolder (e.g., /wp-includes/ID3/priv.php)
+    location ~* /[^?]*/[^?]*\.php($|\?) { return 444; }
+
+    # -----------------------------------------
+    # (3) Block hidden/sensitive files
+    # -----------------------------------------
+    # Dotfiles (.git, .env, etc.)
+    location ~ /\. { return 404; }
+
+    # Config/backup/package artifacts that should never be exposed
+    location ~* \.(ini|env|bak|old|swp|sql|tar|tgz|gz|zip|7z|rar|lock)$ { return 404; }
+
+    # vendor/composer and any PHP under .well-known
+    location ~* ^/(vendor|composer\.(json|lock)|\.well-known/.*\.php)$ { return 404; }
+
+    # -----------------------------------------
+    # (5) Rate-limit static/SPAs (non-API)
+    # -----------------------------------------
+    location / {
+        # Gentle rate limiting for static assets and SPA routes
+        limit_req zone=static_ratelimit burst=40 nodelay;
+        # If you want to restrict methods here, you can uncomment:
+        # if ($request_method !~ ^(GET|HEAD|OPTIONS)$) { return 405; }
+        try_files $uri $uri/ $uri.html /index.html;
+    }
+
+    # API reverse proxy (BACKEND_URL is injected via envsubst)
+    location /api/ {
+        proxy_pass $BACKEND_URL/;
+
+        proxy_http_version 1.1;
+
+        # Forwarded headers (Cloudflare -> origin)
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host  $host;
+        proxy_set_header X-Forwarded-Port  $server_port;
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+
+        proxy_request_buffering on;
+        proxy_buffering on;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_connect_timeout 5s;
+
+        proxy_pass_header Set-Cookie;
+
+        # API rate limit (small burst allowed)
+        limit_req zone=api_ratelimit burst=20;
+    }
+
+    # Health endpoint
+    location /health {
+        access_log off;
+        return 200 "healthy\n";
+        add_header Content-Type text/plain;
+    }
+
+    # Error pages
+    error_page 404 /404.html;
+    error_page 500 502 503 504 /500.html;
+
+    # Optional: concurrent connection limit per IP (pairs with zone above)
+    limit_conn perip 20;
+    limit_conn_status 429;
+}
+
+# --- MCP server ---
+server {
+    listen 80;
+    listen [::]:80;
+    server_name mcp.securechain.dev;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name mcp.securechain.dev;
+
+    # Reutilizamos los mismos certificados de Cloudflare
+    ssl_certificate     /etc/ssl/cf_origin.pem;
+    ssl_certificate_key /etc/ssl/private/cf_origin.key;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:50m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    location /gateway/ {
+        proxy_pass http://securechain-gateway:8000/;
+
+        proxy_http_version 1.1;
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host  $host;
+        proxy_set_header X-Forwarded-Port  $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_request_buffering on;
+        proxy_buffering on;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_connect_timeout 5s;
+
+        proxy_pass_header Set-Cookie;
+    }
+
+    # Proxy hacia tu contenedor MCP (ajusta el host/puerto según docker-compose)
+    location / {
+        proxy_pass http://securechain-mcp:8000;
+
+        proxy_http_version 1.1;
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host  $host;
+        proxy_set_header X-Forwarded-Port  $server_port;
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+
+        proxy_request_buffering on;
+        proxy_buffering on;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_connect_timeout 5s;
+
+        proxy_pass_header Set-Cookie;
+    }
+
+    # Health endpoint específico del MCP
+    location /health {
+        access_log off;
+        return 200 "mcp healthy\n";
+        add_header Content-Type text/plain;
+    }
+}

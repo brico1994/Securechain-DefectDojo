@@ -1,0 +1,16 @@
+{
+  "tix_version": "0.1",
+  "tickets": [
+    {
+      "vulnerability": "CVE-2023-0001",
+      "product": {
+        "purl": "pkg:pypi/requests@2.25.0"
+      },
+      "severity": "HIGH",
+      "description": "Test vulnerability used for contract tests.",
+      "references": [
+        "https://nvd.nist.gov/vuln/detail/CVE-2023-0001"
+      ]
+    }
+  ]
+}

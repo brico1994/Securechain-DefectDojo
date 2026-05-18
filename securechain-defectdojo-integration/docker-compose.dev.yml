@@ -1,0 +1,24 @@
+services:
+  securechain-defectdojo-integration:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: securechain-defectdojo-integration
+    environment:
+      APP_MODULE: app.main:app
+    ports:
+      - "8001:8000"
+    env_file:
+      - .env
+    networks:
+      - securechain
+      - defectdojo 
+
+networks:
+  securechain:
+    external: true
+    name: securechain
+
+  defectdojo:
+    external: true
+    name: django-defectdojo_default

@@ -1,0 +1,129 @@
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+from uuid import uuid4
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def generate_document_id() -> str:
+    return str(uuid4())
+
+
+class GenericFindingsDocument:
+    """
+    Modelo de dominio para documento de Generic Findings (MongoDB).
+    """
+
+    def __init__(
+        self,
+        repository_id: str,
+        findings: List[Dict[str, Any]],
+        owner: Optional[str] = None,
+        repo: Optional[str] = None,
+        sbom_name: Optional[str] = None,
+        document_id: Optional[str] = None,
+        created_at: Optional[datetime] = None,
+        updated_at: Optional[datetime] = None,
+    ):
+        if not repository_id:
+            raise ValueError("repository_id is required")
+
+        if findings is None:
+            raise ValueError("findings cannot be None")
+
+        self.document_id: str = document_id or generate_document_id()
+        self.repository_id: str = repository_id
+        self.owner: Optional[str] = owner
+        self.repo: Optional[str] = repo
+        self.sbom_name: Optional[str] = sbom_name
+
+        self.created_at: datetime = created_at or utc_now()
+        self.updated_at: datetime = updated_at or utc_now()
+
+        self.findings: List[Dict[str, Any]] = findings
+        self.findings_count: int = len(findings)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Serialización para MongoDB
+        """
+        return {
+            "document_id": self.document_id,
+            "repository_id": self.repository_id,
+            "owner": self.owner,
+            "repo": self.repo,
+            "sbom_name": self.sbom_name,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "findings_count": self.findings_count,
+            "findings": self.findings,
+        }
+
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> "GenericFindingsDocument":
+        """
+        Deserialización desde MongoDB
+        """
+        return GenericFindingsDocument(
+            document_id=data.get("document_id"),
+            repository_id=data["repository_id"],
+            owner=data.get("owner"),
+            repo=data.get("repo"),
+            sbom_name=data.get("sbom_name"),
+            created_at=data.get("created_at"),
+            updated_at=data.get("updated_at"),
+            findings=data.get("findings", []),
+        )
+
+
+class GenericFindingsDocumentSummary:
+    """
+    Modelo ligero para listados (sin findings completos)
+    """
+
+    def __init__(
+        self,
+        document_id: str,
+        repository_id: str,
+        findings_count: int,
+        created_at: datetime,
+        updated_at: datetime,
+        owner: Optional[str] = None,
+        repo: Optional[str] = None,
+        sbom_name: Optional[str] = None,
+    ):
+        self.document_id = document_id
+        self.repository_id = repository_id
+        self.findings_count = findings_count
+        self.created_at = created_at
+        self.updated_at = updated_at
+        self.owner = owner
+        self.repo = repo
+        self.sbom_name = sbom_name
+
+    @staticmethod
+    def from_document(doc: GenericFindingsDocument) -> "GenericFindingsDocumentSummary":
+        return GenericFindingsDocumentSummary(
+            document_id=doc.document_id,
+            repository_id=doc.repository_id,
+            findings_count=doc.findings_count,
+            created_at=doc.created_at,
+            updated_at=doc.updated_at,
+            owner=doc.owner,
+            repo=doc.repo,
+            sbom_name=doc.sbom_name,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "document_id": self.document_id,
+            "repository_id": self.repository_id,
+            "findings_count": self.findings_count,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "owner": self.owner,
+            "repo": self.repo,
+            "sbom_name": self.sbom_name,
+        }
